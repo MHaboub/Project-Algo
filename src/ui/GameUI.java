@@ -104,11 +104,136 @@ public class GameUI extends JFrame {
     }
 
     private void createUI() {
-        setLayout(new BorderLayout());
+        setLayout(new BorderLayout(10, 10));
 
-        // Create grid panel
+        // Create main panel with BorderLayout
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Create legend panel on the left
+        JPanel legendPanel = createLegendPanel();
+        mainPanel.add(legendPanel, BorderLayout.WEST);
+
+        // Create grid panel in the center
+        gridPanel = createGridPanel();
+        mainPanel.add(gridPanel, BorderLayout.CENTER);
+
+        // Create info panel on the right
+        JPanel infoPanel = new JPanel();
+        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+        infoPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 0));
+
+        // Score section
+        scoreLabel = new JLabel("Score: 0");
+        scoreLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        infoPanel.add(scoreLabel);
+        infoPanel.add(Box.createVerticalStrut(10));
+
+        // Words Found section
+        wordsLabel = new JLabel(String.format("Words Found: 0/%d", game.getRequiredWords()));
+        wordsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        infoPanel.add(wordsLabel);
+        infoPanel.add(Box.createVerticalStrut(10));
+
+        // Moves Left section
+        movesLabel = new JLabel("Moves Left: " + game.getMovesLeft());
+        movesLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        infoPanel.add(movesLabel);
+        infoPanel.add(Box.createVerticalStrut(10));
+
+        // Current Word section
+        currentWordLabel = new JLabel("Current Word: ");
+        currentWordLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        infoPanel.add(currentWordLabel);
+        infoPanel.add(Box.createVerticalStrut(10));
+
+        // Found Words section
+        JLabel foundWordsTitle = new JLabel("Found Words:");
+        foundWordsTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        infoPanel.add(foundWordsTitle);
+        infoPanel.add(Box.createVerticalStrut(5));
+
+        foundWordsArea = new JTextArea(10, 15);
+        foundWordsArea.setEditable(false);
+        foundWordsArea.setLineWrap(true);
+        foundWordsArea.setWrapStyleWord(true);
+        JScrollPane scrollPane = new JScrollPane(foundWordsArea);
+        scrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        infoPanel.add(scrollPane);
+
+        mainPanel.add(infoPanel, BorderLayout.EAST);
+
+        // Create control panel at the bottom
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton submitButton = new JButton("Submit Word");
+        submitButton.addActionListener(e -> handleSubmitWord());
+        JButton resetButton = new JButton("Reset Path");
+        resetButton.addActionListener(e -> resetPath());
+        controlPanel.add(submitButton);
+        controlPanel.add(resetButton);
+        mainPanel.add(controlPanel, BorderLayout.SOUTH);
+
+        // Add the main panel to the frame
+        add(mainPanel);
+
+        updateUI();
+        pack();
+        setLocationRelativeTo(null);
+    }
+
+    private JPanel createLegendPanel() {
+        JPanel legendPanel = new JPanel();
+        legendPanel.setLayout(new BoxLayout(legendPanel, BoxLayout.Y_AXIS));
+        legendPanel.setBorder(BorderFactory.createTitledBorder("Cell Types"));
+
+        // Add some padding
+        legendPanel.setBorder(BorderFactory.createCompoundBorder(
+            legendPanel.getBorder(),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)
+        ));
+
+        // Create legend items
+        addLegendItem(legendPanel, Color.WHITE, "Normal Cell");
+        addLegendItem(legendPanel, Color.BLACK, "Blocked Cell");
+        addLegendItem(legendPanel, new Color(255, 200, 200), "Special Cell (+25 points)");
+        addLegendItem(legendPanel, Color.GREEN, "Start Cell");
+        addLegendItem(legendPanel, Color.RED, "Destination Cell");
+        addLegendItem(legendPanel, Color.YELLOW, "Selected Path");
+        addLegendItem(legendPanel, Color.LIGHT_GRAY, "Used Cell");
+        addLegendItem(legendPanel, LAST_CLICKED_COLOR, "Last Clicked Cell");
+        addLegendItem(legendPanel, VALIDATED_WORD_COLOR, "Validated Word");
+
+        return legendPanel;
+    }
+
+    private void addLegendItem(JPanel legendPanel, Color color, String text) {
+        JPanel itemPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+
+        // Create color square
+        JPanel colorSquare = new JPanel() {
+            @Override
+            public Dimension getPreferredSize() {
+                return new Dimension(20, 20);
+            }
+        };
+        colorSquare.setBackground(color);
+        colorSquare.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+
+        // Create label
+        JLabel label = new JLabel(text);
+
+        // Add components
+        itemPanel.add(colorSquare);
+        itemPanel.add(label);
+
+        // Add some vertical spacing between items
+        legendPanel.add(Box.createVerticalStrut(5));
+        legendPanel.add(itemPanel);
+    }
+
+    private JPanel createGridPanel() {
         Grid grid = game.getGrid();
-        gridPanel = new JPanel(new GridLayout(grid.getRows(), grid.getCols()));
+        JPanel gridPanel = new JPanel(new GridLayout(grid.getRows(), grid.getCols()));
         cellButtons = new JButton[grid.getRows()][grid.getCols()];
 
         for (int i = 0; i < grid.getRows(); i++) {
@@ -117,7 +242,7 @@ public class GameUI extends JFrame {
                 JButton button = new JButton(String.valueOf(cell.getLetter()));
                 button.setPreferredSize(new Dimension(50, 50));
                 button.setFont(new Font("Arial", Font.BOLD, 16));
-                
+
                 if (cell.isBlocked()) {
                     button.setBackground(Color.BLACK);
                     button.setEnabled(false);
@@ -132,45 +257,13 @@ public class GameUI extends JFrame {
                 final int row = i;
                 final int col = j;
                 button.addActionListener(e -> handleCellClick(row, col));
-                
+
                 cellButtons[i][j] = button;
                 gridPanel.add(button);
             }
         }
 
-        // Create info panel
-        JPanel infoPanel = new JPanel(new GridLayout(5, 1));
-        scoreLabel = new JLabel("Score: 0");
-        movesLabel = new JLabel("Moves left: " + game.getMovesLeft());
-        wordsLabel = new JLabel("Words found: 0/" + game.getRequiredWords());
-        currentWordLabel = new JLabel("Current Word: ");
-        
-        foundWordsArea = new JTextArea(5, 20);
-        foundWordsArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(foundWordsArea);
-
-        infoPanel.add(scoreLabel);
-        infoPanel.add(movesLabel);
-        infoPanel.add(wordsLabel);
-        infoPanel.add(currentWordLabel);
-        infoPanel.add(scrollPane);
-
-        // Create control panel
-        JPanel controlPanel = new JPanel();
-        JButton submitButton = new JButton("Submit Word");
-        submitButton.addActionListener(e -> handleSubmitWord());
-        JButton resetButton = new JButton("Reset Path");
-        resetButton.addActionListener(e -> resetPath());
-        
-        controlPanel.add(submitButton);
-        controlPanel.add(resetButton);
-
-        // Add panels to frame
-        add(gridPanel, BorderLayout.CENTER);
-        add(infoPanel, BorderLayout.EAST);
-        add(controlPanel, BorderLayout.SOUTH);
-
-        updateUI();
+        return gridPanel;
     }
 
     private void showGameOver() {
@@ -202,7 +295,7 @@ public class GameUI extends JFrame {
     private void handleSubmitWord() {
         if (game.submitWord()) {
             updateUI();
-            
+
             // Check if all words are found
             if (game.isComplete()) {
                 JOptionPane.showMessageDialog(this,
@@ -222,17 +315,17 @@ public class GameUI extends JFrame {
 
     private void handleCellClick(int row, int col) {
         Cell cell = game.getGrid().getCell(row, col);
-        
+
         // If it's the destination cell, end the game immediately
         if (cell == game.getGrid().getDestinationCell()) {
             showGameOver();
             return;
         }
-        
+
         if (game.move(cell)) {
             lastClickedCell = cell;
             updateUI();
-            
+
             if (game.hasWon() || game.hasLost()) {
                 showGameOver();
             }
