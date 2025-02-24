@@ -174,32 +174,49 @@ public class GameUI extends JFrame {
     }
 
     private void showGameOver() {
-        int finalScore = game.getScore();
-        boolean isHighScore = highScoreManager.isHighScore(finalScore);
-        
-        if (isHighScore) {
-            highScoreManager.addScore(playerName, finalScore);
+        String scoreDetails = game.getFinalScoreDetails();
+        String message = String.format("Game Over %s!\n\n%s", playerName, scoreDetails);
+
+        // Check if it's a high score
+        if (highScoreManager.isHighScore(game.getFinalScore())) {
+            highScoreManager.addScore(playerName, game.getFinalScore());
+            message += "\n\nNew High Score!";
         }
 
-        StringBuilder message = new StringBuilder();
-        message.append("Game Over!\n");
-        message.append("Your score: ").append(finalScore).append("\n\n");
-        message.append("High Scores:\n");
-        
-        for (HighScore score : highScoreManager.getHighScores()) {
-            message.append(score.toString()).append("\n");
-        }
+        // Show all high scores
+        message += "\n\nHigh Scores:\n" + highScoreManager.getHighScoresText();
 
-        int choice = JOptionPane.showConfirmDialog(this,
-            message.toString() + "\nWould you like to play again?",
+        int option = JOptionPane.showConfirmDialog(this,
+            message + "\n\nWould you like to play again?",
             "Game Over",
             JOptionPane.YES_NO_OPTION);
 
-        if (choice == JOptionPane.YES_OPTION) {
+        if (option == JOptionPane.YES_OPTION) {
             dispose();
             new GameUI();
         } else {
             System.exit(0);
+        }
+    }
+
+    private void handleSubmitWord() {
+        if (game.submitWord()) {
+            updateUI();
+            
+            // Check if all words are found
+            if (game.isComplete()) {
+                JOptionPane.showMessageDialog(this,
+                    "Congratulations! You've found all the words in this labyrinth! \n" +
+                    "You earn a 50-point bonus for your achievement!",
+                    "Labyrinth Complete!",
+                    JOptionPane.INFORMATION_MESSAGE);
+                showGameOver();
+            }
+        } else {
+            JOptionPane.showMessageDialog(this,
+                "Invalid word or already found!",
+                "Error",
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -222,18 +239,6 @@ public class GameUI extends JFrame {
         }
     }
 
-    private void handleSubmitWord() {
-        if (game.submitWord()) {
-            // The current path is automatically added to previousPaths in WordLabyrinth
-            updateUI();
-        } else {
-            JOptionPane.showMessageDialog(this,
-                "Invalid word or already found!",
-                "Error",
-                JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
     private void resetPath() {
         // Save the current path's color before resetting
         if (!game.getCurrentPath().isEmpty()) {
@@ -248,7 +253,7 @@ public class GameUI extends JFrame {
 
     private void updateUI() {
         // Update labels
-        scoreLabel.setText("Score: " + game.getScore());
+        updateScoreLabel();
         movesLabel.setText("Moves left: " + game.getMovesLeft());
         wordsLabel.setText("Words found: " + game.getFoundWords().size() + 
                           "/" + game.getRequiredWords());
@@ -327,6 +332,11 @@ public class GameUI extends JFrame {
                 }
             }
         }
+    }
+
+    private void updateScoreLabel() {
+        scoreLabel.setText(String.format("Score: %d | Words Found: %d/%d | Moves Left: %d",
+            game.getCurrentScore(), game.getFoundWords().size(), game.getRequiredWords(), game.getMovesLeft()));
     }
 
     public static void main(String[] args) {

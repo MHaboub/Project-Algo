@@ -33,6 +33,15 @@ public class HighScoreManager {
         return new ArrayList<>(highScores);
     }
 
+    public String getHighScoresText() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < highScores.size(); i++) {
+            HighScore score = highScores.get(i);
+            sb.append(String.format("%d. %s: %d\n", i + 1, score.getName(), score.getScore()));
+        }
+        return sb.toString();
+    }
+
     private void loadHighScores() {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(SCORES_FILE))) {
             highScores = (List<HighScore>) ois.readObject();

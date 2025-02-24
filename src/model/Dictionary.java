@@ -98,18 +98,29 @@ public class Dictionary {
     public int getWordScore(String word) {
         if (!isValidWord(word)) return 0;
         
-        int baseScore = word.length() * 10;  // 10 points per letter
-        
-        // Difficulty multiplier
+        int baseScore = word.length() * 10;
         switch (currentLevel) {
             case EASY:
                 return baseScore;
             case MEDIUM:
-                return (int)(baseScore * 1.5);  // 50% bonus for medium words
+                return (int)(baseScore * 1.5);
             case HARD:
-                return baseScore * 2;  // 100% bonus for hard words
+                return baseScore * 2;
             default:
-                return 0;
+                return baseScore;
+        }
+    }
+
+    public Set<String> getWords() {
+        switch (currentLevel) {
+            case EASY:
+                return new HashSet<>(easyWords);
+            case MEDIUM:
+                return new HashSet<>(mediumWords);
+            case HARD:
+                return new HashSet<>(hardWords);
+            default:
+                return new HashSet<>(easyWords);
         }
     }
 }

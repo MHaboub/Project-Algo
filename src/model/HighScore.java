@@ -15,6 +15,7 @@ public class HighScore implements Serializable {
     }
 
     public String getPlayerName() { return playerName; }
+    public String getName() { return playerName; }
     public int getScore() { return score; }
     public Date getDate() { return date; }
 

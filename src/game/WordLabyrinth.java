@@ -9,7 +9,10 @@ import java.util.*;
 public class WordLabyrinth {
     private Grid grid;
     private model.Dictionary dictionary;
-    private int score;
+    private int wordScore; // Score from found words only
+    private int specialCellBonus; // Bonus from special cells
+    private int movesLeftBonus; // Bonus from moves left
+    private int completionBonus; // Bonus for completing the game
     private List<String> foundWords;
     private List<Cell> currentPath;
     private List<List<Cell>> previousPaths;
@@ -22,6 +25,10 @@ public class WordLabyrinth {
         foundWords = new ArrayList<>();
         currentPath = new ArrayList<>();
         previousPaths = new ArrayList<>();
+        wordScore = 0;
+        specialCellBonus = 0;
+        movesLeftBonus = 0;
+        completionBonus = 0;
         initializeGame(level, rows, cols);
     }
 
@@ -29,34 +36,25 @@ public class WordLabyrinth {
         // Set game parameters based on difficulty
         switch (level) {
             case EASY:
-                movesLeft = rows * cols ;  // More moves for larger grids
-                requiredWords = Math.max(5, rows * cols / 10);  // At least 5 words, or 10% of grid size
+                movesLeft = rows * cols;
+                requiredWords = Math.max(5, rows * cols / 10);
                 break;
             case MEDIUM:
-                movesLeft = rows * cols * 3;
+                movesLeft = (rows * cols) * 3/4;
                 requiredWords = Math.max(8, rows * cols / 8);
                 break;
             case HARD:
-                movesLeft = rows * cols * 4;
+                movesLeft = (rows * cols) / 2;
                 requiredWords = Math.max(12, rows * cols / 6);
                 break;
             default:
-                movesLeft = rows * cols ;
+                movesLeft = rows * cols;
                 requiredWords = Math.max(5, rows * cols / 10);
         }
 
-        grid = new Grid(rows, cols, dictionary.getCurrentDictionary());
-        
-        // Add blocked and special cells based on difficulty and grid size
-        int blockedCells = (int)(rows * cols * 0.1);  // 10% of cells are blocked
-        int specialCells = (int)(rows * cols * 0.05);  // 5% of cells are special
-        grid.addBlockedCells(blockedCells);
-        grid.addSpecialCells(specialCells);
-        
-        // Set random start and destination cells
-        setRandomStartAndDestination();
-        
-        score = 0;
+        // Create grid with required number of words
+        grid = new Grid(rows, cols, requiredWords);
+        grid.initializeGrid(dictionary.getWords());
     }
 
     private void setRandomStartAndDestination() {
@@ -118,24 +116,19 @@ public class WordLabyrinth {
 
         String wordStr = word.toString().toLowerCase();
         if (dictionary.isValidWord(wordStr) && !foundWords.contains(wordStr)) {
-            // Calculate word score
-            int wordScore = dictionary.getWordScore(wordStr);
+            // Calculate word score based on difficulty
+            int currentWordScore = dictionary.getWordScore(wordStr);
+            wordScore += currentWordScore;
             
-            // Add path length bonus
-            List<Cell> shortestPath = grid.findShortestPath(currentPath.get(0), 
-                                                           currentPath.get(currentPath.size() - 1));
-            if (shortestPath != null && shortestPath.size() == currentPath.size()) {
-                wordScore += 50;  // Bonus for using optimal path
-            }
-
             // Add special cell bonus
+            int cellBonus = 0;
             for (Cell cell : currentPath) {
                 if (cell.isSpecial()) {
-                    wordScore += 25;  // Bonus for each special cell used
+                    cellBonus += 25;  // Bonus for each special cell used
                 }
             }
+            specialCellBonus += cellBonus;
 
-            score += wordScore;
             foundWords.add(wordStr);
 
             // Mark cells as used
@@ -146,10 +139,49 @@ public class WordLabyrinth {
             // Add current path to previous paths before clearing
             previousPaths.add(new ArrayList<>(currentPath));
             currentPath.clear();
+
             return true;
         }
 
         return false;
+    }
+
+    // Get current score (only words found)
+    public int getCurrentScore() {
+        return wordScore;
+    }
+
+    // Get final detailed score
+    public String getFinalScoreDetails() {
+        StringBuilder details = new StringBuilder();
+        details.append(String.format("Score for words = %d\n", wordScore));
+        details.append(String.format("Special cell bonus = %d\n", specialCellBonus));
+        details.append(String.format("Moves left bonus = %d\n", movesLeft));
+        
+        int completionBonus = isComplete() ? 50 : 0;
+        details.append(String.format("Completion bonus = %d\n", completionBonus));
+        
+        int totalScore = wordScore + specialCellBonus + movesLeft + completionBonus;
+        details.append(String.format("\nTotal Score = %d", totalScore));
+        
+        return details.toString();
+    }
+
+    // Get final total score
+    public int getFinalScore() {
+        int finalScore = wordScore + specialCellBonus;
+        
+        // Add moves left bonus only if at least one word was found
+        if (!foundWords.isEmpty()) {
+            finalScore += movesLeft;
+        }
+        
+        // Add completion bonus if all words found
+        if (isComplete()) {
+            finalScore += 50;
+        }
+        
+        return finalScore;
     }
 
     public void resetPath() {
@@ -164,17 +196,18 @@ public class WordLabyrinth {
     }
 
     public boolean hasLost() {
-        return movesLeft <= 0 && !hasWon();
+        return movesLeft <= 0;
+    }
+
+    public boolean isComplete() {
+        return foundWords.size() >= requiredWords;
     }
 
     // Getters
     public Grid getGrid() { return grid; }
-    public int getScore() { return score; }
     public List<String> getFoundWords() { return new ArrayList<>(foundWords); }
     public int getMovesLeft() { return movesLeft; }
     public int getRequiredWords() { return requiredWords; }
     public List<Cell> getCurrentPath() { return new ArrayList<>(currentPath); }
-    public List<List<Cell>> getPreviousPaths() {
-        return previousPaths;
-    }
+    public List<List<Cell>> getPreviousPaths() { return previousPaths; }
 }

@@ -12,105 +12,82 @@ public class Grid {
     private Map<Cell, List<Cell>> graph;
     private Cell startCell;
     private Cell destinationCell;
+    private Random random;
+    private static final int MAX_PLACEMENT_ATTEMPTS = 100;
     private List<String> placedWords;
+    private int requiredWords;
 
-    public Grid(int rows, int cols, Set<String> dictionary) {
+    public Grid(int rows, int cols, int requiredWords) {
         this.rows = rows;
         this.cols = cols;
         this.cells = new Cell[rows][cols];
-        this.graph = new HashMap<>();
+        this.random = new Random();
+        this.requiredWords = requiredWords;
         this.placedWords = new ArrayList<>();
-        initializeGrid(dictionary);
+        initializeEmptyGrid();
+        placeBlockedCells();
+        placeStartAndDestinationCells();
         buildGraph();
     }
 
-    private void initializeGrid(Set<String> dictionary) {
-        // First, fill the grid with empty cells
+    private void initializeEmptyGrid() {
+        // Initialize all cells as empty
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
                 cells[i][j] = new Cell(' ', i, j);
             }
         }
+    }
 
-        // Convert dictionary to list for random access
-        List<String> wordList = new ArrayList<>(dictionary);
-        Collections.shuffle(wordList);
+    private void placeBlockedCells() {
+        int numBlocked = (rows * cols) / 10; // 10% of cells are blocked
+        int placed = 0;
 
-        // Try to place words in random directions
-        Random random = new Random();
-        int wordsToPlace = Math.min(wordList.size(), (rows * cols) / 4); // Place about 25% of grid size in words
+        while (placed < numBlocked) {
+            int row = random.nextInt(rows);
+            int col = random.nextInt(cols);
 
-        for (int i = 0; i < wordsToPlace && i < wordList.size(); i++) {
-            String word = wordList.get(i).toUpperCase();
-            boolean placed = false;
-            int attempts = 0;
-            
-            while (!placed && attempts < 50) { // Limit attempts per word
-                // Random starting position
-                int startRow = random.nextInt(rows);
-                int startCol = random.nextInt(cols);
-                
-                // Random direction (-1, 0, 1 for each dimension)
-                int rowDir = random.nextInt(3) - 1;
-                int colDir = random.nextInt(3) - 1;
-                
-                if (rowDir == 0 && colDir == 0) continue; // Skip if no direction
-                
-                placed = tryPlaceWord(word, startRow, startCol, rowDir, colDir);
-                attempts++;
-            }
-            
-            if (placed) {
-                placedWords.add(word);
-            }
-        }
-
-        // Fill remaining empty cells with random letters
-        String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                if (cells[i][j].getLetter() == ' ') {
-                    char randomLetter = alphabet.charAt(random.nextInt(alphabet.length()));
-                    cells[i][j].setLetter(randomLetter);
-                }
+            if (!cells[row][col].isBlocked()) {
+                cells[row][col].setBlocked(true);
+                cells[row][col].setLetter(' ');
+                placed++;
             }
         }
     }
 
-    private boolean tryPlaceWord(String word, int startRow, int startCol, int rowDir, int colDir) {
-        // Check if word fits
-        int endRow = startRow + (word.length() - 1) * rowDir;
-        int endCol = startCol + (word.length() - 1) * colDir;
-        
-        if (endRow < 0 || endRow >= rows || endCol < 0 || endCol >= cols) {
-            return false;
-        }
-
-        // Check if path is clear or compatible
-        for (int i = 0; i < word.length(); i++) {
-            int currentRow = startRow + i * rowDir;
-            int currentCol = startCol + i * colDir;
-            char currentCell = cells[currentRow][currentCol].getLetter();
-            
-            if (currentCell != ' ' && currentCell != word.charAt(i)) {
-                return false;
+    private void placeStartAndDestinationCells() {
+        // Place start cell
+        do {
+            int row = random.nextInt(rows);
+            int col = random.nextInt(cols);
+            if (!cells[row][col].isBlocked()) {
+                startCell = cells[row][col];
+                startCell.setSpecial(true);
+                break;
             }
-        }
+        } while (true);
 
-        // Place the word
-        for (int i = 0; i < word.length(); i++) {
-            int currentRow = startRow + i * rowDir;
-            int currentCol = startCol + i * colDir;
-            cells[currentRow][currentCol].setLetter(word.charAt(i));
-        }
-
-        return true;
+        // Place destination cell (away from start)
+        do {
+            int row = random.nextInt(rows);
+            int col = random.nextInt(cols);
+            if (!cells[row][col].isBlocked() && 
+                cells[row][col] != startCell &&
+                Math.abs(row - startCell.getRow()) + Math.abs(col - startCell.getCol()) >= Math.max(rows, cols) / 2) {
+                destinationCell = cells[row][col];
+                destinationCell.setSpecial(true);
+                destinationCell.setLetter(' ');
+                break;
+            }
+        } while (true);
     }
 
     private void buildGraph() {
         // Define possible movements (including diagonals)
         int[] dx = {-1, -1, -1, 0, 0, 1, 1, 1};
         int[] dy = {-1, 0, 1, -1, 1, -1, 0, 1};
+
+        graph = new HashMap<>();
 
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
@@ -243,6 +220,99 @@ public class Grid {
         return path.get(0).equals(start) ? path : null;
     }
 
+    public void initializeGrid(Set<String> dictionary) {
+        // Convert dictionary to list and sort by length (longer words first)
+        List<String> wordList = new ArrayList<>(dictionary);
+        Collections.sort(wordList, (a, b) -> b.length() - a.length());
+
+        // Define all possible directions for word placement
+        int[][] directions = {
+            {0, 1},   // right
+            {1, 0},   // down
+            {1, 1},   // diagonal down-right
+            {1, -1},  // diagonal down-left
+            {-1, 1},  // diagonal up-right
+            {-1, -1}, // diagonal up-left
+            {-1, 0},  // up
+            {0, -1}   // left
+        };
+
+        // Try to place exactly the required number of words
+        int wordsPlaced = 0;
+        List<String> availableWords = new ArrayList<>(wordList);
+        Collections.shuffle(availableWords); // Randomize word selection
+
+        while (wordsPlaced < requiredWords && !availableWords.isEmpty()) {
+            String word = availableWords.remove(0);
+            if (word.length() <= Math.min(rows, cols)) {
+                boolean placed = false;
+                for (int attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS && !placed; attempt++) {
+                    int startRow = random.nextInt(rows);
+                    int startCol = random.nextInt(cols);
+                    int[] direction = directions[random.nextInt(directions.length)];
+
+                    if (canPlaceWord(word, startRow, startCol, direction[0], direction[1])) {
+                        placeWord(word, startRow, startCol, direction[0], direction[1]);
+                        placedWords.add(word);
+                        wordsPlaced++;
+                        placed = true;
+                    }
+                }
+            }
+        }
+
+        // Fill remaining cells with random letters
+        fillRemainingCells();
+    }
+
+    private boolean canPlaceWord(String word, int startRow, int startCol, int dRow, int dCol) {
+        int endRow = startRow + (word.length() - 1) * dRow;
+        int endCol = startCol + (word.length() - 1) * dCol;
+
+        // Check if word fits within grid bounds
+        if (endRow < 0 || endRow >= rows || endCol < 0 || endCol >= cols) {
+            return false;
+        }
+
+        // Check if path crosses any blocked cells or destination cell
+        for (int i = 0; i < word.length(); i++) {
+            int r = startRow + i * dRow;
+            int c = startCol + i * dCol;
+            Cell cell = cells[r][c];
+            
+            if (cell.isBlocked() || cell == destinationCell || 
+                (cell.getLetter() != ' ' && cell.getLetter() != word.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void placeWord(String word, int startRow, int startCol, int dRow, int dCol) {
+        for (int i = 0; i < word.length(); i++) {
+            int r = startRow + i * dRow;
+            int c = startCol + i * dCol;
+            cells[r][c].setLetter(word.charAt(i));
+        }
+    }
+
+    private void fillRemainingCells() {
+        String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                Cell cell = cells[i][j];
+                if (cell.getLetter() == ' ' && !cell.isBlocked() && cell != destinationCell) {
+                    cell.setLetter(alphabet.charAt(random.nextInt(alphabet.length())));
+                }
+            }
+        }
+    }
+
+    public List<String> getPlacedWords() {
+        return new ArrayList<>(placedWords);
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -260,9 +330,5 @@ public class Grid {
             sb.append("\n");
         }
         return sb.toString();
-    }
-
-    public List<String> getPlacedWords() {
-        return new ArrayList<>(placedWords);
     }
 }
